@@ -13,12 +13,11 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.2",
+    "@prisma/client": "6.19.2",
     "dotenv": "^17.3.1",
     "fastest-levenshtein": "^1.0.16",
     "jsonwebtoken": "^9.0.3",
     "next": "16.1.6",
-    "prisma": "^6.19.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "uuid": "^13.0.0"
@@ -32,6 +31,7 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "prisma": "6.19.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
