@@ -1,20 +1,19 @@
 /**
  * Clean a Spotify track title for Apple Music search.
- * Removes noise like "- Radio Edit", "(Remastered)", "feat.", etc.
+ * Removes parentheses, brackets, feat/ft mentions, suffixes, special chars.
  */
 function cleanTitle(title: string): string {
-  return (
-    title
-      // Remove everything after " - " (Radio Edit, Remastered, Deluxe, etc.)
-      .replace(/\s*-\s*.+$/, "")
-      // Remove parenthesized noise (feat., Remastered, Bonus Track, Live, etc.)
-      .replace(/\s*\((?:feat\.?|ft\.?|with|remaster|deluxe|bonus|live|remix|radio|edit|version|original|anniversary|mono|stereo|acoustic|explicit|clean|extended|short|single)[^)]*\)/gi, "")
-      // Remove bracketed noise [Remastered], [Deluxe], etc.
-      .replace(/\s*\[(?:feat\.?|ft\.?|remaster|deluxe|bonus|live|remix|radio|edit|version|original|anniversary|mono|stereo|acoustic|explicit|clean|extended|short|single)[^\]]*\]/gi, "")
-      // Remove standalone "feat." / "ft." mentions
-      .replace(/\s*(?:feat\.?|ft\.?)\s+.+$/i, "")
-      .trim()
-  );
+  let cleaned = title;
+  // Remove everything between parentheses or brackets
+  cleaned = cleaned.replace(/\(.*?\)|\[.*?\]/g, "");
+  // Remove everything after " - "
+  cleaned = cleaned.replace(/\s*-\s*.+$/, "");
+  // Remove "feat." / "ft." followed by names
+  cleaned = cleaned.replace(/feat\.?\s+[\w\s]+/gi, "");
+  cleaned = cleaned.replace(/ft\.?\s+[\w\s]+/gi, "");
+  // Collapse multiple spaces and trim
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  return cleaned;
 }
 
 /**
@@ -22,14 +21,13 @@ function cleanTitle(title: string): string {
  */
 function cleanArtist(artist: string): string {
   return artist
-    .split(/,|&|;|\bx\b|\bX\b/)[0]
+    .split(/,|&|;/)[0]
     .trim();
 }
 
 /**
  * Generates an Apple Music search URL for a given track.
- * Format: https://music.apple.com/search?term=ARTIST+TITLE
- * Artist first gives better results on Apple Music.
+ * Format: https://music.apple.com/us/search?term=ARTIST%20TITLE
  */
 export function getAppleMusicSearchUrl(
   title: string,
@@ -37,12 +35,11 @@ export function getAppleMusicSearchUrl(
 ): string {
   const cleanedTitle = cleanTitle(title);
   const cleanedArtist = cleanArtist(artist);
-  // Replace + with spaces so Apple Music doesn't show literal "+"
   const term = `${cleanedArtist} ${cleanedTitle}`
     .replace(/\+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return `https://music.apple.com/search?term=${encodeURIComponent(term)}`;
+  return `https://music.apple.com/us/search?term=${encodeURIComponent(term)}`;
 }
 
 export interface TrackWithLink {
