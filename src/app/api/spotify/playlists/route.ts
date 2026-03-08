@@ -1,45 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { getUserPlaylists, getPlaylistTracks, refreshSpotifyToken } from "@/services/spotifyService";
-import { logger } from "@/lib/logger";
+import {
+  getUserPlaylists,
+  refreshSpotifyToken,
+} from "@/services/spotifyService";
 
-async function getValidAccessToken(userId: string): Promise<string> {
-  const tokenRecord = await prisma.spotifyToken.findUnique({
-    where: { userId },
-  });
+async function getAccessToken(request: NextRequest): Promise<{
+  accessToken: string;
+  refreshed?: { access_token: string; expires_in: number };
+}> {
+  let accessToken = request.cookies.get("spotify_access_token")?.value;
+  const refreshToken = request.cookies.get("spotify_refresh_token")?.value;
 
-  if (!tokenRecord) {
-    throw new Error("No Spotify token found");
+  if (!accessToken && refreshToken) {
+    const newTokens = await refreshSpotifyToken(refreshToken);
+    return { accessToken: newTokens.access_token, refreshed: newTokens };
   }
 
-  if (tokenRecord.expiresAt < new Date(Date.now() + 5 * 60 * 1000)) {
-    const newTokens = await refreshSpotifyToken(tokenRecord.refreshToken);
-    await prisma.spotifyToken.update({
-      where: { userId },
-      data: {
-        accessToken: newTokens.access_token,
-        refreshToken: newTokens.refresh_token || tokenRecord.refreshToken,
-        expiresAt: new Date(Date.now() + newTokens.expires_in * 1000),
-      },
-    });
-    return newTokens.access_token;
-  }
-
-  return tokenRecord.accessToken;
+  if (!accessToken) throw new Error("Not authenticated");
+  return { accessToken };
 }
 
-// GET /api/spotify/playlists - Get user playlists
+// GET /api/spotify/playlists — Get user playlists
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.cookies.get("user_id")?.value;
-    if (!userId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    const accessToken = await getValidAccessToken(userId);
+    const { accessToken, refreshed } = await getAccessToken(request);
     const playlists = await getUserPlaylists(accessToken);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       playlists: playlists.map((p) => ({
         id: p.id,
         name: p.name,
@@ -49,8 +36,20 @@ export async function GET(request: NextRequest) {
       })),
       total: playlists.length,
     });
+
+    if (refreshed) {
+      res.cookies.set("spotify_access_token", refreshed.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: refreshed.expires_in,
+        path: "/",
+      });
+    }
+
+    return res;
   } catch (error) {
-    logger.error("Failed to fetch Spotify playlists", error);
+    console.error("Failed to fetch playlists:", error);
     return NextResponse.json(
       { error: "Failed to fetch playlists" },
       { status: 500 }

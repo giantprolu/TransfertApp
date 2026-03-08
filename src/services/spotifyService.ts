@@ -1,13 +1,10 @@
 import { config } from "@/lib/config";
-import { logger } from "@/lib/logger";
-import { SpotifyApiError, RateLimitError } from "@/lib/errors";
-import { withRetry } from "@/lib/retry";
 
 export interface SpotifyTrack {
   id: string;
   name: string;
   artists: { name: string }[];
-  album: { name: string };
+  album: { name: string; images: { url: string }[] };
   uri: string;
 }
 
@@ -27,7 +24,7 @@ export interface SpotifyTokens {
   scope: string;
 }
 
-// Build the Spotify authorization URL
+/** Build the Spotify authorization URL */
 export function getSpotifyAuthUrl(state: string): string {
   const params = new URLSearchParams({
     response_type: "code",
@@ -36,13 +33,14 @@ export function getSpotifyAuthUrl(state: string): string {
     redirect_uri: config.spotify.redirectUri,
     state,
   });
-
   return `${config.spotify.authorizeUrl}?${params.toString()}`;
 }
 
-// Exchange authorization code for tokens
-export async function exchangeSpotifyCode(code: string): Promise<SpotifyTokens> {
-  const response = await fetch(config.spotify.tokenUrl, {
+/** Exchange authorization code for tokens */
+export async function exchangeSpotifyCode(
+  code: string
+): Promise<SpotifyTokens> {
+  const res = await fetch(config.spotify.tokenUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -57,18 +55,18 @@ export async function exchangeSpotifyCode(code: string): Promise<SpotifyTokens> 
     }),
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    logger.error("Spotify token exchange failed", error);
-    throw new SpotifyApiError(`Token exchange failed: ${error}`, response.status);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Spotify token exchange failed: ${err}`);
   }
-
-  return response.json();
+  return res.json();
 }
 
-// Refresh an expired access token
-export async function refreshSpotifyToken(refreshToken: string): Promise<SpotifyTokens> {
-  const response = await fetch(config.spotify.tokenUrl, {
+/** Refresh an expired access token */
+export async function refreshSpotifyToken(
+  refreshToken: string
+): Promise<SpotifyTokens> {
+  const res = await fetch(config.spotify.tokenUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -82,89 +80,85 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<Spotify
     }),
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    logger.error("Spotify token refresh failed", error);
-    throw new SpotifyApiError(`Token refresh failed: ${error}`, response.status);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Spotify token refresh failed: ${err}`);
+  }
+  return res.json();
+}
+
+/** Authenticated Spotify API call */
+async function spotifyFetch<T>(
+  endpoint: string,
+  accessToken: string
+): Promise<T> {
+  const res = await fetch(`${config.spotify.apiBaseUrl}${endpoint}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get("Retry-After") || "2", 10);
+    await new Promise((r) => setTimeout(r, retryAfter * 1000));
+    return spotifyFetch<T>(endpoint, accessToken);
   }
 
-  return response.json();
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Spotify API error ${res.status}: ${err}`);
+  }
+  return res.json();
 }
 
-// Make authenticated API calls to Spotify
-async function spotifyFetch(endpoint: string, accessToken: string): Promise<unknown> {
-  return withRetry(async () => {
-    const response = await fetch(`${config.spotify.apiBaseUrl}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (response.status === 429) {
-      const retryAfter = parseInt(response.headers.get("Retry-After") || "1", 10);
-      throw new RateLimitError(retryAfter);
-    }
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new SpotifyApiError(`Spotify API error: ${error}`, response.status);
-    }
-
-    return response.json();
-  });
-}
-
-// Get all Liked Songs with pagination
-export async function getLikedSongs(accessToken: string): Promise<SpotifyTrack[]> {
+/** Get all Liked Songs with automatic pagination */
+export async function getLikedSongs(
+  accessToken: string,
+  onProgress?: (fetched: number) => void
+): Promise<SpotifyTrack[]> {
   const tracks: SpotifyTrack[] = [];
   let offset = 0;
   const limit = 50;
 
-  logger.info("Fetching Spotify Liked Songs...");
-
   while (true) {
-    const data = (await spotifyFetch(
-      `/me/tracks?limit=${limit}&offset=${offset}`,
-      accessToken
-    )) as { items: { track: SpotifyTrack }[]; next: string | null };
+    const data = await spotifyFetch<{
+      items: { track: SpotifyTrack }[];
+      next: string | null;
+    }>(`/me/tracks?limit=${limit}&offset=${offset}`, accessToken);
 
     for (const item of data.items) {
-      tracks.push(item.track);
+      if (item.track) tracks.push(item.track);
     }
 
-    logger.debug(`Fetched ${tracks.length} tracks so far...`);
-
+    onProgress?.(tracks.length);
     if (!data.next) break;
     offset += limit;
   }
 
-  logger.info(`Total Liked Songs fetched: ${tracks.length}`);
   return tracks;
 }
 
-// Get all user playlists
-export async function getUserPlaylists(accessToken: string): Promise<SpotifyPlaylist[]> {
+/** Get all user playlists */
+export async function getUserPlaylists(
+  accessToken: string
+): Promise<SpotifyPlaylist[]> {
   const playlists: SpotifyPlaylist[] = [];
   let offset = 0;
   const limit = 50;
 
   while (true) {
-    const data = (await spotifyFetch(
-      `/me/playlists?limit=${limit}&offset=${offset}`,
-      accessToken
-    )) as { items: SpotifyPlaylist[]; next: string | null };
+    const data = await spotifyFetch<{
+      items: SpotifyPlaylist[];
+      next: string | null;
+    }>(`/me/playlists?limit=${limit}&offset=${offset}`, accessToken);
 
     playlists.push(...data.items);
-
     if (!data.next) break;
     offset += limit;
   }
 
-  logger.info(`Total playlists fetched: ${playlists.length}`);
   return playlists;
 }
 
-// Get tracks from a specific playlist
+/** Get tracks from a specific playlist */
 export async function getPlaylistTracks(
   accessToken: string,
   playlistId: string
@@ -174,15 +168,16 @@ export async function getPlaylistTracks(
   const limit = 100;
 
   while (true) {
-    const data = (await spotifyFetch(
+    const data = await spotifyFetch<{
+      items: { track: SpotifyTrack }[];
+      next: string | null;
+    }>(
       `/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}`,
       accessToken
-    )) as { items: { track: SpotifyTrack }[]; next: string | null };
+    );
 
     for (const item of data.items) {
-      if (item.track) {
-        tracks.push(item.track);
-      }
+      if (item.track) tracks.push(item.track);
     }
 
     if (!data.next) break;
@@ -192,11 +187,12 @@ export async function getPlaylistTracks(
   return tracks;
 }
 
-// Get current user's profile
+/** Get current user profile */
 export async function getSpotifyProfile(accessToken: string) {
-  return spotifyFetch("/me", accessToken) as Promise<{
+  return spotifyFetch<{
     id: string;
     email: string;
     display_name: string;
-  }>;
+    images: { url: string }[];
+  }>("/me", accessToken);
 }

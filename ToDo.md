@@ -1,241 +1,173 @@
 Tu es un ingénieur software senior expert en :
+
 - Next.js
 - Node.js
-- OAuth2
 - Spotify API
-- Apple Music API (MusicKit)
-- Prisma
-- PostgreSQL
-- Vercel deployment
+- web scraping léger
 - SaaS architecture
-
-Je veux créer un site web qui permet de transférer les "Liked Songs" et playlists de Spotify vers Apple Music.
-
-Le site doit fonctionner comme SongShift ou TuneMyMusic.
+- Vercel deployment
 
 IMPORTANT
-Le projet doit être prêt pour :
 
-1) développement local
-2) déploiement sur Vercel
+Je développe une web app qui transfère les "Liked Songs" Spotify vers Apple Music.
 
-Je n’ai PAS encore l’URL de production.
+MAIS je ne veux PAS utiliser l’Apple Music API car je ne veux pas payer l’Apple Developer Program.
 
-Donc le projet doit fonctionner avec :
+Le projet doit donc fonctionner SANS :
 
-LOCAL
-http://localhost:3000
+- Apple Music API
+- MusicKit
+- Apple Developer account
 
-PRODUCTION
-une URL Vercel future (ex: https://mon-app.vercel.app)
+L’objectif est de créer un outil gratuit qui aide l’utilisateur à migrer sa musique Spotify vers Apple Music.
 
-Les redirect URIs OAuth doivent être configurables via variables d’environnement.
-
-OBJECTIF
-
-Créer une web app qui :
-
-1. Connecte le compte Spotify d’un utilisateur
-2. Récupère ses "Liked Songs"
-3. Connecte son compte Apple Music
-4. Recherche chaque titre dans Apple Music
-5. Crée une playlist Apple Music
-6. Ajoute les morceaux dans cette playlist
-
-Je veux un projet complet prêt à lancer.
-
-STACK TECHNIQUE
+STACK
 
 Frontend
-- Next.js 14 (App Router)
-- React
-- Typescript
-- TailwindCSS
+Next.js 14
+React
+Typescript
+Tailwind
 
 Backend
-- API routes Next.js
-
-Auth
-- Spotify OAuth2
-- Apple Music MusicKit JS
-
-Database
-- PostgreSQL
-- Prisma ORM
+Next.js API routes
 
 Deployment
-- Vercel
+Vercel
 
-FONCTIONNALITÉS
+DEV
 
-Landing page
-bouton :
+Mac + Windows
 
-"Connect Spotify"
+npm install
+npm run dev
 
-Authentification Spotify
+FONCTIONNEMENT
 
-Scopes nécessaires :
-user-library-read
-playlist-read-private
-
-Une fois connecté :
-
-récupérer :
-
-GET /v1/me/tracks
-
-gérer la pagination.
-
-Connexion Apple Music
-
-via MusicKit JS.
-
-Matching des chansons
-
-Pour chaque track Spotify :
-
-extraire :
+1. L’utilisateur connecte Spotify
+2. On récupère ses liked songs
+3. On extrait :
 
 - title
 - artist
 - album
 
-Puis utiliser Apple Music API :
+4. On génère pour chaque chanson :
 
-/v1/catalog/{storefront}/search
+un lien Apple Music search :
 
-Implémenter un matching intelligent :
+https://music.apple.com/search?term=TITLE+ARTIST
 
-score basé sur
+Exemple :
 
-- similarité titre
-- similarité artiste
-- similarité album
+https://music.apple.com/search?term=daft+punk+get+lucky
 
-Utiliser Levenshtein distance.
+5. L’utilisateur peut cliquer pour ouvrir la chanson dans Apple Music.
 
-Créer fonction :
+EXPORT
 
-matchTrack(spotifyTrack)
+Créer aussi :
 
-Retourne :
+1. export JSON
+2. export CSV
+3. export playlist format texte
 
-- meilleur résultat Apple Music
-- score de matching
+CSV exemple :
 
-Création playlist Apple Music
+title,artist
+Get Lucky,Daft Punk
+Blinding Lights,The Weeknd
 
-Nom :
+INTERFACE
 
-"Imported from Spotify"
+Page 1
 
-Ajouter toutes les chansons trouvées.
+Landing page
 
-Afficher UI :
+bouton :
 
-- progression
-- nombre de chansons trouvées
-- chansons non trouvées
+Connect Spotify
 
-GESTION DES TOKENS
+Page 2
 
-Spotify
+Login Spotify OAuth
 
-- access token
-- refresh token
+Scopes :
 
-Apple Music
+user-library-read
+playlist-read-private
 
-- developer token
-- user token
+Page 3
 
-Ne jamais exposer developer token côté client.
+Récupération des liked songs
 
-DATABASE
+Endpoint :
 
-Créer tables :
+GET https://api.spotify.com/v1/me/tracks
 
-users
-spotify_tokens
-apple_music_tokens
-imports
-tracks
+Pagination 50 items.
 
-STRUCTURE DU PROJET
+Afficher :
+
+- titre
+- artiste
+- album
+
+Page 4
+
+Boutons :
+
+Export CSV
+Export JSON
+Open Apple Music links
+
+STRUCTURE PROJET
 
 /music-transfer
 
 /app
 /components
+/api
 /lib
 /services
-/prisma
-/api
 
 Créer fichiers :
 
 spotifyService.ts
-appleMusicService.ts
-matchingService.ts
+exportService.ts
+appleSearchService.ts
 
-DEV LOCAL
+SPOTIFY
 
-Le projet doit fonctionner avec :
+Configurer OAuth2.
 
-npm install
-npm run dev
-
-sur Mac et Windows.
-
-ENV VARIABLES
-
-Créer fichier :
-
-.env.local
-
-avec :
+Variables env :
 
 SPOTIFY_CLIENT_ID=
 SPOTIFY_CLIENT_SECRET=
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
-APPLE_MUSIC_KEY_ID=
-APPLE_MUSIC_TEAM_ID=
-APPLE_MUSIC_PRIVATE_KEY=
 
-VERCEL
+Créer callback :
 
-Préparer le projet pour :
+/api/auth/spotify/callback
 
-vercel deploy
+DEPLOIEMENT
 
-et expliquer :
+Préparer projet pour Vercel.
 
-1. comment ajouter variables d’environnement
-2. comment configurer redirect URIs Spotify après déploiement
-3. comment générer l’Apple Music developer token
+Expliquer :
 
-DONNE MOI :
-
-1. architecture complète du projet
-2. tous les fichiers
-3. le code complet
-4. configuration Prisma
-5. configuration OAuth Spotify
-6. configuration Apple Music MusicKit
-7. instructions Mac + Windows
-8. étapes déploiement Vercel
-9. gestion erreurs API
-10. gestion rate limits
-11. retry automatique
+- comment configurer variables env
+- comment ajouter redirect URI Spotify
+- comment déployer
 
 BONUS
 
 Ajouter :
 
 - import playlists Spotify
-- barre de progression temps réel
-- logs
-- dashboard simple historique imports
+- barre de progression
+- recherche dans la liste
+- bouton "ouvrir toutes les chansons Apple Music"
 
-Le projet doit être structuré comme une vraie application SaaS prête à être mise en production.
+Le projet doit être simple, propre et prêt pour production.

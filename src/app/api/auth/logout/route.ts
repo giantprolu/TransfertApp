@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-// POST /api/auth/logout
-export async function POST(request: NextRequest) {
+// POST /api/auth/logout — Clear Spotify session cookies
+export async function POST() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const response = NextResponse.redirect(baseUrl);
-  response.cookies.delete("user_id");
-  return response;
+  const res = NextResponse.json({ success: true });
+  res.cookies.delete("spotify_access_token");
+  res.cookies.delete("spotify_refresh_token");
+  return res;
 }

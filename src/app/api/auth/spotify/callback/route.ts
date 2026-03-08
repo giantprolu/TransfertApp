@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeSpotifyCode, getSpotifyProfile } from "@/services/spotifyService";
-import prisma from "@/lib/prisma";
-import { logger } from "@/lib/logger";
+import { exchangeSpotifyCode } from "@/services/spotifyService";
 
 export async function GET(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -14,7 +12,6 @@ export async function GET(request: NextRequest) {
     const storedState = request.cookies.get("spotify_auth_state")?.value;
 
     if (error) {
-      logger.error("Spotify auth error", error);
       return NextResponse.redirect(`${baseUrl}?error=${error}`);
     }
 
@@ -28,55 +25,31 @@ export async function GET(request: NextRequest) {
 
     // Exchange code for tokens
     const tokens = await exchangeSpotifyCode(code);
-    
-    // Get user profile
-    const profile = await getSpotifyProfile(tokens.access_token);
 
-    // Upsert user and tokens in database
-    const user = await prisma.user.upsert({
-      where: { email: profile.email },
-      update: {
-        name: profile.display_name,
-      },
-      create: {
-        email: profile.email,
-        name: profile.display_name,
-      },
+    // Store tokens in httpOnly cookies (no database needed)
+    const response = NextResponse.redirect(`${baseUrl}/songs`);
+
+    response.cookies.set("spotify_access_token", tokens.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: tokens.expires_in,
+      path: "/",
     });
 
-    await prisma.spotifyToken.upsert({
-      where: { userId: user.id },
-      update: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        scope: tokens.scope,
-      },
-      create: {
-        userId: user.id,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        scope: tokens.scope,
-      },
-    });
-
-    logger.info(`User authenticated: ${profile.display_name} (${profile.email})`);
-
-    // Set session cookie with user ID
-    const response = NextResponse.redirect(`${baseUrl}/dashboard`);
-    response.cookies.set("user_id", user.id, {
+    response.cookies.set("spotify_refresh_token", tokens.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 30, // 30 days
       path: "/",
     });
+
     response.cookies.delete("spotify_auth_state");
 
     return response;
-  } catch (error) {
-    logger.error("Spotify callback error", error);
+  } catch (err) {
+    console.error("Spotify callback error:", err);
     return NextResponse.redirect(`${baseUrl}?error=callback_failed`);
   }
 }

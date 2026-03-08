@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Music Transfer - Spotify to Apple Music",
+  title: "Music Transfer — Spotify to Apple Music",
   description:
-    "Transfer your Liked Songs and playlists from Spotify to Apple Music. Fast, accurate matching powered by intelligent song comparison.",
+    "Transfer your Spotify Liked Songs to Apple Music. Generate search links, export CSV/JSON, and migrate your library for free.",
 };
 
 export default function RootLayout({
