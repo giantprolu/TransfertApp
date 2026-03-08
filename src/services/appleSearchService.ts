@@ -39,7 +39,7 @@ export function getAppleMusicSearchUrl(
     .replace(/\+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return `https://music.apple.com/us/search?term=${encodeURIComponent(term)}`;
+  return `https://music.apple.com/fr/search?term=${encodeURIComponent(term)}`;
 }
 
 export interface TrackWithLink {
