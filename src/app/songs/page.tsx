@@ -27,6 +27,7 @@ export default function SongsPage() {
   const [search, setSearch] = useState("");
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [opened, setOpened] = useState<Set<number>>(new Set());
 
   // Fetch playlists on mount
   useEffect(() => {
@@ -98,16 +99,26 @@ export default function SongsPage() {
     URL.revokeObjectURL(a.href);
   }
 
-  // Open all Apple Music links
+  // Mark a track as opened
+  function markOpened(index: number) {
+    setOpened((prev) => new Set(prev).add(index));
+  }
+
+  // Open all Apple Music links (skip already opened)
   function openAllLinks() {
-    // Open in batches to avoid popup blocking
-    const batch = filtered.slice(0, 20); // limit to 20 at a time
-    batch.forEach((t, i) => {
-      setTimeout(() => window.open(t.appleMusicUrl, "_blank"), i * 300);
+    const unopened = filtered
+      .map((t, i) => ({ t, i }))
+      .filter(({ i }) => !opened.has(i));
+    const batch = unopened.slice(0, 20);
+    const newOpened = new Set(opened);
+    batch.forEach(({ t, i }, idx) => {
+      setTimeout(() => window.open(t.appleMusicUrl, "_blank"), idx * 300);
+      newOpened.add(i);
     });
-    if (filtered.length > 20) {
+    setOpened(newOpened);
+    if (unopened.length > 20) {
       alert(
-        `Opened the first 20 links. You have ${filtered.length} total tracks — use the export feature for the complete list.`
+        `Opened 20 of ${unopened.length} remaining links. Click again for the next batch.`
       );
     }
   }
@@ -248,9 +259,14 @@ export default function SongsPage() {
                     href={t.appleMusicUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#FC3C44] hover:text-[#ff5c64] text-xs font-medium whitespace-nowrap transition-colors"
+                    onClick={() => markOpened(i)}
+                    className={`text-xs font-medium whitespace-nowrap transition-colors ${
+                      opened.has(i)
+                        ? "text-gray-600"
+                        : "text-[#FC3C44] hover:text-[#ff5c64]"
+                    }`}
                   >
-                    Open →
+                    {opened.has(i) ? "✓ Opened" : "Open →"}
                   </a>
                 </div>
               ))}
