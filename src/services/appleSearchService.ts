@@ -37,7 +37,11 @@ export function getAppleMusicSearchUrl(
 ): string {
   const cleanedTitle = cleanTitle(title);
   const cleanedArtist = cleanArtist(artist);
-  const term = `${cleanedArtist} ${cleanedTitle}`.trim();
+  // Replace + with spaces so Apple Music doesn't show literal "+"
+  const term = `${cleanedArtist} ${cleanedTitle}`
+    .replace(/\+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return `https://music.apple.com/search?term=${encodeURIComponent(term)}`;
 }
 
